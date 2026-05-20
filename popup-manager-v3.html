@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Popup Manager</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+:root {
+  --bg:#f2f1ed;--surface:#fff;--surface2:#f7f6f2;--border:#e4e2d9;--border2:#ccc9be;
+  --text:#181714;--text2:#6a6860;--text3:#a09d96;
+  --accent:#1f1e1b;--accent2:#3a3834;
+  --blue:#1a4fd6;--blue-bg:#eff3ff;--blue-border:#bfcfff;
+  --green:#0a6640;--green-bg:#edfaf3;--green-border:#a3e6c3;
+  --red:#b91c1c;--red-bg:#fef2f2;--red-border:#fecaca;
+  --amber:#92400e;--amber-bg:#fffbeb;--amber-border:#fde68a;
+  --r:8px;--rl:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
+
+/* ===== SETUP SCREEN ===== */
+#setup-screen{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.setup-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  width:100%;max-width:480px;padding:40px;
+}
+.setup-logo{text-align:center;margin-bottom:32px}
+.setup-logo h1{font-size:22px;font-weight:700;letter-spacing:-.02em}
+.setup-logo p{font-size:13px;color:var(--text2);margin-top:4px}
+.setup-field{margin-bottom:16px}
+.setup-field label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:6px}
+.setup-field input{
+  width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--r);
+  font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);
+  transition:border-color .15s;
+}
+.setup-field input:focus{outline:none;border-color:var(--accent)}
+.setup-hint{font-size:11px;color:var(--text3);margin-top:4px}
+.setup-btn{
+  width:100%;padding:12px;background:var(--accent);color:#fff;border:none;
+  border-radius:var(--r);font-size:14px;font-weight:700;font-family:inherit;
+  cursor:pointer;margin-top:8px;transition:background .15s;
+}
+.setup-btn:hover{background:var(--accent2)}
+.setup-error{
+  background:var(--red-bg);border:1px solid var(--red-border);border-radius:var(--r);
+  padding:10px 14px;font-size:12px;color:var(--red);margin-bottom:14px;display:none;
+}
+.setup-divider{text-align:center;margin:20px 0;font-size:12px;color:var(--text3);position:relative}
+.setup-divider:before{content:'';position:absolute;left:0;top:50%;width:100%;height:1px;background:var(--border)}
+.setup-divider span{position:relative;background:var(--surface);padding:0 10px}
+.setup-local-btn{
+  width:100%;padding:10px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);
+  border-radius:var(--r);font-size:13px;font-family:inherit;cursor:pointer;transition:all .15s;
+}
+.setup-local-btn:hover{background:var(--border);color:var(--text)}
+.setup-spinner{display:none;text-align:center;padding:16px;color:var(--text2);font-size:13px}
+
+/* ===== APP SCREEN ===== */
+#app-screen{display:none;min-height:100vh}
+.app-layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+
+/* Sidebar */
+.sidebar{
+  background:var(--accent);color:#fff;
+  display:flex;flex-direction:column;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.sidebar-top{padding:20px 16px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sidebar-top h1{font-size:14px;font-weight:700;letter-spacing:.01em}
+.sidebar-top p{font-size:11px;color:rgba(255,255,255,.4);margin-top:2px}
+.sync-status{
+  display:flex;align-items:center;gap:5px;margin-top:8px;
+  font-size:11px;padding:4px 8px;border-radius:20px;width:fit-content;
+}
+.sync-status.synced{background:rgba(16,185,129,.15);color:#6ee7b7}
+.sync-status.local{background:rgba(255,255,255,.08);color:rgba(255,255,255,.4)}
+.sync-status.saving{background:rgba(251,191,36,.15);color:#fcd34d}
+.sync-status.error{background:rgba(239,68,68,.15);color:#fca5a5}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+.sidebar-nav{padding:10px 8px;flex:1}
+.nav-item{
+  display:flex;align-items:center;gap:9px;padding:8px 10px;
+  border-radius:var(--r);cursor:pointer;font-size:13px;
+  color:rgba(255,255,255,.55);transition:all .15s;margin-bottom:2px;
+}
+.nav-item:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.85)}
+.nav-item.active{background:rgba(255,255,255,.12);color:#fff;font-weight:500}
+.nav-item svg{width:15px;height:15px;flex-shrink:0}
+
+.sidebar-bottom{padding:12px 16px;border-top:1px solid rgba(255,255,255,.08)}
+.disconnect-btn{
+  width:100%;padding:7px;background:rgba(239,68,68,.12);color:#fca5a5;
+  border:1px solid rgba(239,68,68,.2);border-radius:var(--r);
+  font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s;
+}
+.disconnect-btn:hover{background:rgba(239,68,68,.2)}
+
+/* Main */
+.main-area{padding:28px 32px;overflow-y:auto}
+.page{display:none}
+.page.active{display:block}
+.page-header{margin-bottom:24px}
+.page-header h2{font-size:20px;font-weight:700}
+.page-header p{font-size:13px;color:var(--text2);margin-top:3px}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:20px 24px;margin-bottom:16px}
+.card-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px;display:flex;align-items:center;gap:6px}
+.card-label svg{width:14px;height:14px}
+
+/* Form */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:5px}
+.field input[type=text],.field input[type=url],.field input[type=number],.field textarea,.field select{
+  width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--r);
+  font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);transition:border-color .15s;
+}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:68px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.color-row{display:flex;align-items:center;gap:8px}
+.color-row input[type=color]{width:34px;height:34px;border:1px solid var(--border);border-radius:var(--r);padding:3px;cursor:pointer;flex-shrink:0}
+.color-row input[type=text]{flex:1}
+
+/* Toggle */
+.toggle-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;
+}
+.toggle-info strong{font-size:13px;display:block}
+.toggle-info small{font-size:11px;color:var(--text3)}
+.toggle{position:relative;width:38px;height:21px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:var(--border2);border-radius:20px;cursor:pointer;transition:.2s}
+.toggle-track:before{content:'';position:absolute;width:15px;height:15px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.toggle input:checked+.toggle-track{background:var(--accent)}
+.toggle input:checked+.toggle-track:before{transform:translateX(17px)}
+
+/* Range */
+.range-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.range-row label{font-size:12px;color:var(--text2);width:100px;flex-shrink:0}
+.range-row input[type=range]{flex:1;accent-color:var(--accent)}
+.range-val{font-size:12px;font-weight:500;min-width:40px;text-align:right;color:var(--text)}
+
+/* Upload */
+.upload-box{
+  border:2px dashed var(--border);border-radius:var(--rl);padding:22px;
+  text-align:center;cursor:pointer;transition:all .15s;background:var(--surface2);
+}
+.upload-box:hover{border-color:var(--accent)}
+.upload-box svg{width:26px;height:26px;color:var(--text3);margin-bottom:6px}
+.upload-box p{font-size:12px;color:var(--text2)}
+.upload-box small{font-size:11px;color:var(--text3)}
+.upload-preview{width:100%;max-height:150px;object-fit:contain;border-radius:var(--r);border:1px solid var(--border);margin-bottom:10px;display:none}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:var(--r);font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;transition:all .15s;border:none}
+.btn svg{width:14px;height:14px}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2)}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--surface2)}
+.btn-success{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.btn-row{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap;align-items:center}
+
+/* Save indicator */
+.save-indicator{font-size:12px;color:var(--text3);display:flex;align-items:center;gap:5px}
+.save-indicator.saved{color:var(--green)}
+.save-indicator.saving{color:var(--amber)}
+
+/* Info / Warn boxes */
+.info-box{background:var(--blue-bg);border:1px solid var(--blue-border);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:14px;line-height:1.6}
+.warn-box{background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--amber);margin-bottom:14px;line-height:1.6}
+.success-box{background:var(--green-bg);border:1px solid var(--green-border);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--green);margin-bottom:14px;line-height:1.6}
+
+/* Preview */
+.preview-stage{background:#e8e6df;border-radius:var(--rl);position:relative;overflow:hidden;min-height:340px;display:flex;align-items:center;justify-content:center}
+.lp-bg{position:absolute;inset:0;padding:22px}
+.lp-line{height:8px;background:#ccc9bf;border-radius:4px;margin-bottom:7px}
+.overlay-mock{position:absolute;inset:0;background:rgba(0,0,0,.42);display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .3s;pointer-events:none}
+.overlay-mock.show{opacity:1;pointer-events:all}
+.popup-mock{width:290px;background:#fff;border-radius:11px;padding:20px 16px 16px;position:relative}
+.pm-close{position:absolute;top:7px;right:9px;background:none;border:none;font-size:14px;cursor:pointer;color:#bbb}
+.pm-img{width:100%;border-radius:6px;margin-bottom:9px;display:none}
+.pm-badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;margin-bottom:5px}
+.pm-title{font-size:14px;font-weight:700;color:#1a1917;margin-bottom:3px}
+.pm-desc{font-size:11px;color:#777;margin-bottom:9px;line-height:1.5}
+.pm-coupon{background:#f9f9f7;border:1.5px dashed #ccc;border-radius:6px;padding:8px;text-align:center;margin-bottom:7px;display:none}
+.pm-coupon-code{font-size:15px;font-weight:700;letter-spacing:.08em;color:#333}
+.pm-input{width:100%;padding:6px 9px;border:1px solid #ddd;border-radius:5px;font-size:11px;margin-bottom:6px}
+.pm-btn{width:100%;padding:8px;border:none;border-radius:6px;font-size:11px;font-weight:700;color:#fff;cursor:pointer}
+.pm-skip{text-align:center;margin-top:5px;font-size:10px;color:#bbb;cursor:pointer}
+
+/* Code */
+.code-wrap{background:#1b1a18;border-radius:var(--rl);overflow:hidden}
+.code-header{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:#242320;border-bottom:1px solid #333}
+.code-header span{font-size:11px;color:#888;font-family:'JetBrains Mono',monospace}
+.code-header button{font-size:11px;padding:4px 10px;background:#333;color:#ccc;border:none;border-radius:4px;cursor:pointer;font-family:inherit}
+.code-header button:hover{background:#444;color:#fff}
+.code-block{padding:14px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c8c5bc;white-space:pre-wrap;word-break:break-all;max-height:380px;overflow-y:auto;line-height:1.7}
+
+/* Spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- ===== SETUP SCREEN ===== -->
+<div id="setup-screen">
+  <div class="setup-card">
+    <div class="setup-logo">
+      <h1>🎯 Popup Manager</h1>
+      <p>LP ポップアップ広告管理ツール</p>
+    </div>
+
+    <div class="setup-error" id="setup-error"></div>
+
+    <div class="setup-field">
+      <label>Apps Script デプロイURL</label>
+      <input type="url" id="setup-url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+      <p class="setup-hint">Googleスプレッドシートと連携している場合は入力してください</p>
+    </div>
+    <div class="setup-field">
+      <label>シークレットキー</label>
+      <input type="password" id="setup-key" placeholder="Apps Scriptに設定したキー" autocomplete="off">
+      <p class="setup-hint">Code.gs の SECRET と同じ値を入力してください</p>
+    </div>
+
+    <div class="setup-spinner" id="setup-spinner"><span class="spinner"></span> 接続確認中...</div>
+    <button class="setup-btn" onclick="connectGAS()">Googleスプレッドシートと接続する</button>
+
+    <div class="setup-divider"><span>または</span></div>
+    <button class="setup-local-btn" onclick="startLocal()">ローカルモードで使う（保存なし）</button>
+
+    <div style="margin-top:20px;padding:12px;background:var(--surface2);border-radius:var(--r);font-size:11px;color:var(--text3);line-height:1.7">
+      🔒 入力した情報はこのブラウザのlocalStorageに保存されます。他人のPCでは使用しないでください。
+    </div>
+  </div>
+</div>
+
+<!-- ===== APP SCREEN ===== -->
+<div id="app-screen">
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <h1>🎯 Popup Manager</h1>
+        <p id="mode-label">ローカルモード</p>
+        <div class="sync-status local" id="sync-status">
+          <div class="sync-dot"></div>
+          <span id="sync-text">未接続</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-item active" onclick="showPage('design')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>
+          デザイン設定
+        </div>
+        <div class="nav-item" onclick="showPage('trigger')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          表示ルール
+        </div>
+        <div class="nav-item" onclick="showPage('preview')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          プレビュー
+        </div>
+        <div class="nav-item" onclick="showPage('code')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          コード出力
+        </div>
+      </nav>
+      <div class="sidebar-bottom">
+        <button class="disconnect-btn" onclick="disconnect()">接続解除・ログアウト</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-area">
+
+      <!-- DESIGN PAGE -->
+      <div class="page active" id="page-design">
+        <div class="page-header">
+          <h2>デザイン設定</h2>
+          <p>ポップアップの内容と見た目を設定します</p>
+        </div>
+
+        <div class="card">
+          <div class="card-label">種類</div>
+          <div class="field">
+            <select id="popup-type" onchange="onTypeChange()">
+              <option value="lead">メール登録・リード獲得</option>
+              <option value="coupon">クーポン・特典提示</option>
+              <option value="both">両方（メール登録＋クーポン）</option>
+              <option value="banner">バナー画像のみ</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="card" id="text-card">
+          <div class="card-label">テキスト</div>
+          <div class="field">
+            <label>バッジ</label>
+            <input type="text" id="txt-badge" value="🎁 期間限定" oninput="markDirty()">
+          </div>
+          <div class="field">
+            <label>タイトル</label>
+            <input type="text" id="txt-title" value="初回購入15%OFF" oninput="markDirty()">
+          </div>
+          <div class="field">
+            <label>説明文</label>
+            <textarea id="txt-desc" oninput="markDirty()">メールアドレスを登録してクーポンをゲット</textarea>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>ボタンテキスト</label>
+              <input type="text" id="txt-btn" value="クーポンをもらう" oninput="markDirty()">
+            </div>
+            <div class="field" id="coupon-field">
+              <label>クーポンコード</label>
+              <input type="text" id="txt-coupon" value="WELCOME15" oninput="markDirty()">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">バナー画像（任意）</div>
+          <img id="upload-preview" class="upload-preview">
+          <div class="upload-box" onclick="document.getElementById('img-file').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            <p>クリックして画像をアップロード</p>
+            <small>JPG / PNG / GIF / WebP</small>
+          </div>
+          <input type="file" id="img-file" accept="image/*" style="display:none" onchange="onImageUpload(this)">
+          <div class="field" style="margin-top:10px">
+            <label>画像クリック時のリンクURL（任意）</label>
+            <input type="url" id="img-link" placeholder="https://example.com" oninput="markDirty()">
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-label">カラー</div>
+          <div class="field-row">
+            <div class="field">
+              <label>ボタン色</label>
+              <div class="color-row">
+                <input type="color" id="col-btn" value="#1f1e1b" onchange="syncHex('col-btn','col-btn-hex');markDirty()">
+                <input type="text" id="col-btn-hex" value="#1f1e1b" maxlength="7" oninput="syncPicker('col-btn-hex','col-btn');markDirty()">
+              </div>
+            </div>
+            <div class="field">
+              <label>バッジ色</label>
+              <div class="color-row">
+                <input type="color" id="col-badge" value="#FFF3CD" onchange="syncHex('col-badge','col-badge-hex');markDirty()">
+                <input type="text" id="col-badge-hex" value="#FFF3CD" maxlength="7" oninput="syncPicker('col-badge-hex','col-badge');markDirty()">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveSettings()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            保存する
+          </button>
+          <div class="save-indicator" id="save-indicator"></div>
+        </div>
+      </div>
+
+      <!-- TRIGGER PAGE -->
+      <div class="page" id="page-trigger">
+        <div class="page-header">
+          <h2>表示ルール</h2>
+          <p>ポップアップの表示タイミングと頻度を設定します</p>
+        </div>
+
+        <div class="card">
+          <div class="card-label">表示タイミング</div>
+          <div class="range-row">
+            <label>スクロール到達率</label>
+            <input type="range" min="10" max="90" value="50" step="1" id="trig-scroll" oninput="document.getElementById('sv').textContent=this.value+'%';markDirty()">
+            <span class="range-val" id="sv">50%</span>
+          </div>
+          <div class="range-row">
+            <label>ページ読込後（秒）</label>
+            <input type="range" min="0" max="60" value="5" step="1" id="trig-time" oninput="document.getElementById('tv').textContent=this.value+'秒';markDirty()">
+            <span class="range-val" id="tv">5秒</span>
+          </div>
+          <p style="font-size:11px;color:var(--text3)">スクロール到達 OR 指定秒数経過、いずれか早い方で表示されます</p>
+        </div>
+
+        <div class="card">
+          <div class="card-label">表示頻度</div>
+          <div class="toggle-row">
+            <div class="toggle-info">
+              <strong>1ユーザーに1回だけ表示</strong>
+              <small>localStorageで管理。一度表示したら二度と出ません</small>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="chk-once" checked onchange="toggleOnce();markDirty()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div id="freq-settings" style="display:none">
+            <div class="field-row" style="margin-top:10px">
+              <div class="field">
+                <label>再表示までの日数</label>
+                <input type="number" id="trig-days" value="3" min="1" oninput="markDirty()">
+              </div>
+              <div class="field">
+                <label>最大表示回数</label>
+                <input type="number" id="trig-max" value="2" min="1" oninput="markDirty()">
+              </div>
+            </div>
+          </div>
+          <div class="toggle-row" style="margin-top:8px">
+            <div class="toggle-info">
+              <strong>離脱検知で表示</strong>
+              <small>マウスが画面上端を超えたとき（PCのみ）</small>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="chk-exit" onchange="markDirty()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveSettings()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            保存する
+          </button>
+          <div class="save-indicator" id="save-indicator2"></div>
+        </div>
+      </div>
+
+      <!-- PREVIEW PAGE -->
+      <div class="page" id="page-preview">
+        <div class="page-header">
+          <h2>プレビュー</h2>
+          <p>実際の表示イメージを確認できます</p>
+        </div>
+        <div class="card">
+          <button class="btn btn-primary" onclick="showOverlay()" style="margin-bottom:14px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            ポップアップを表示
+          </button>
+          <div class="preview-stage">
+            <div class="lp-bg">
+              <div style="font-size:14px;font-weight:700;color:#555;margin-bottom:10px">あなたのLPの見出し</div>
+              <div class="lp-line" style="width:88%"></div>
+              <div class="lp-line" style="width:70%"></div>
+              <div class="lp-line" style="width:82%"></div>
+              <div class="lp-line" style="height:48px;margin-top:10px;border-radius:6px"></div>
+              <div class="lp-line" style="width:75%;margin-top:10px"></div>
+              <div class="lp-line" style="width:55%"></div>
+            </div>
+            <div class="overlay-mock" id="preview-overlay">
+              <div class="popup-mock">
+                <button class="pm-close" onclick="document.getElementById('preview-overlay').classList.remove('show')">✕</button>
+                <img id="pm-img" class="pm-img">
+                <div id="pm-badge-wrap"><div class="pm-badge" id="pm-badge">🎁 期間限定</div></div>
+                <div class="pm-title" id="pm-title">初回購入15%OFF</div>
+                <div class="pm-desc" id="pm-desc">メールアドレスを登録してクーポンをゲット</div>
+                <div class="pm-coupon" id="pm-coupon">
+                  <div class="pm-coupon-code" id="pm-coupon-code">WELCOME15</div>
+                  <div style="font-size:10px;color:#aaa">コードをコピーしてご利用ください</div>
+                </div>
+                <div id="pm-input-wrap"><input type="email" class="pm-input" placeholder="メールアドレス"></div>
+                <button class="pm-btn" id="pm-btn" style="background:#1f1e1b">クーポンをもらう</button>
+                <div class="pm-skip" onclick="document.getElementById('preview-overlay').classList.remove('show')">後で確認する</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CODE PAGE -->
+      <div class="page" id="page-code">
+        <div class="page-header">
+          <h2>コード出力</h2>
+          <p>STUDIOの「カスタムコード」→「&lt;body&gt;内の末尾」に貼り付けてください</p>
+        </div>
+        <div class="card">
+          <div class="info-box">
+            ⚡ バナー画像を使う場合、コード内の <strong>[IMAGE_URL]</strong> を実際の画像URLに差し替えてください
+          </div>
+          <button class="btn btn-primary" onclick="generateCode()" style="margin-bottom:14px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            コードを生成
+          </button>
+          <div class="code-wrap">
+            <div class="code-header">
+              <span>popup.html — STUDIOに貼り付け</span>
+              <button onclick="copyCode()">コピー</button>
+            </div>
+            <div class="code-block" id="code-out">← 「コードを生成」を押してください</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+// ===== STATE =====
+var GAS_URL = '';
+var SECRET_KEY = '';
+var IS_GAS = false;
+var uploadedDataURL = null;
+var isDirty = false;
+var saveTimer = null;
+
+// ===== SETUP =====
+function connectGAS() {
+  var url = document.getElementById('setup-url').value.trim();
+  var key = document.getElementById('setup-key').value.trim();
+  if(!url || !key) { showSetupError('URLとシークレットキーを両方入力してください'); return; }
+
+  document.getElementById('setup-spinner').style.display = 'block';
+  document.getElementById('setup-error').style.display = 'none';
+
+  fetch(url + '?key=' + encodeURIComponent(key))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      document.getElementById('setup-spinner').style.display = 'none';
+      if(d.error === 'unauthorized') { showSetupError('シークレットキーが正しくありません'); return; }
+      GAS_URL = url;
+      SECRET_KEY = key;
+      IS_GAS = true;
+      localStorage.setItem('pm_gas_url', url);
+      localStorage.setItem('pm_gas_key', key);
+      startApp(d);
+    })
+    .catch(function(){
+      document.getElementById('setup-spinner').style.display = 'none';
+      showSetupError('接続に失敗しました。URLを確認してください。\n（CORSエラーの場合はApps Scriptのデプロイ設定を確認してください）');
+    });
+}
+
+function startLocal() {
+  IS_GAS = false;
+  var saved = localStorage.getItem('pm_local_settings');
+  startApp(saved ? JSON.parse(saved) : null);
+}
+
+function showSetupError(msg) {
+  var el = document.getElementById('setup-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function startApp(data) {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+
+  if(IS_GAS) {
+    document.getElementById('mode-label').textContent = 'スプレッドシート連携中';
+    setSyncStatus('synced', '同期済み');
+  } else {
+    document.getElementById('mode-label').textContent = 'ローカルモード';
+    setSyncStatus('local', '未接続');
+  }
+
+  if(data) loadSettings(data);
+  syncPreview();
+}
+
+function disconnect() {
+  if(!confirm('接続を解除してセットアップ画面に戻りますか？')) return;
+  localStorage.removeItem('pm_gas_url');
+  localStorage.removeItem('pm_gas_key');
+  GAS_URL = ''; SECRET_KEY = ''; IS_GAS = false;
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('setup-url').value = '';
+  document.getElementById('setup-key').value = '';
+}
+
+// Auto-restore saved connection
+window.addEventListener('load', function(){
+  var url = localStorage.getItem('pm_gas_url');
+  var key = localStorage.getItem('pm_gas_key');
+  if(url && key) {
+    document.getElementById('setup-url').value = url;
+    document.getElementById('setup-key').value = key;
+    connectGAS();
+  }
+});
+
+// ===== NAVIGATION =====
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  document.getElementById('page-'+name).classList.add('active');
+  var pages = ['design','trigger','preview','code'];
+  var idx = pages.indexOf(name);
+  if(idx>=0) document.querySelectorAll('.nav-item')[idx].classList.add('active');
+  if(name==='preview') syncPreview();
+  if(name==='code') generateCode();
+}
+
+// ===== SETTINGS LOAD / SAVE =====
+function collectSettings() {
+  return {
+    type: document.getElementById('popup-type').value,
+    title: document.getElementById('txt-title').value,
+    desc: document.getElementById('txt-desc').value,
+    badge: document.getElementById('txt-badge').value,
+    btn: document.getElementById('txt-btn').value,
+    coupon: document.getElementById('txt-coupon').value,
+    btnCol: document.getElementById('col-btn').value,
+    badgeCol: document.getElementById('col-badge').value,
+    imgLink: document.getElementById('img-link').value,
+    scroll: document.getElementById('trig-scroll').value,
+    time: document.getElementById('trig-time').value,
+    once: document.getElementById('chk-once').checked,
+    exit: document.getElementById('chk-exit').checked,
+    days: document.getElementById('trig-days').value,
+    max: document.getElementById('trig-max').value,
+    active: true
+  };
+}
+
+function loadSettings(d) {
+  if(!d) return;
+  if(d.type) document.getElementById('popup-type').value = d.type;
+  if(d.title !== undefined) document.getElementById('txt-title').value = d.title;
+  if(d.desc !== undefined) document.getElementById('txt-desc').value = d.desc;
+  if(d.badge !== undefined) document.getElementById('txt-badge').value = d.badge;
+  if(d.btn !== undefined) document.getElementById('txt-btn').value = d.btn;
+  if(d.coupon !== undefined) document.getElementById('txt-coupon').value = d.coupon;
+  if(d.btnCol) { document.getElementById('col-btn').value = d.btnCol; document.getElementById('col-btn-hex').value = d.btnCol; }
+  if(d.badgeCol) { document.getElementById('col-badge').value = d.badgeCol; document.getElementById('col-badge-hex').value = d.badgeCol; }
+  if(d.imgLink) document.getElementById('img-link').value = d.imgLink;
+  if(d.scroll) { document.getElementById('trig-scroll').value = d.scroll; document.getElementById('sv').textContent = d.scroll+'%'; }
+  if(d.time) { document.getElementById('trig-time').value = d.time; document.getElementById('tv').textContent = d.time+'秒'; }
+  if(d.once !== undefined) { document.getElementById('chk-once').checked = !!d.once; toggleOnce(); }
+  if(d.exit !== undefined) document.getElementById('chk-exit').checked = !!d.exit;
+  if(d.days) document.getElementById('trig-days').value = d.days;
+  if(d.max) document.getElementById('trig-max').value = d.max;
+  onTypeChange();
+}
+
+function saveSettings() {
+  var s = collectSettings();
+  setSaveIndicator('saving');
+  setSyncStatus('saving', '保存中...');
+
+  if(IS_GAS) {
+    var body = Object.assign({key: SECRET_KEY}, s);
+    fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: {'Content-Type': 'application/json'}
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.success) {
+        setSaveIndicator('saved');
+        setSyncStatus('synced', '同期済み');
+        isDirty = false;
+      } else {
+        setSaveIndicator('error');
+        setSyncStatus('error', 'エラー');
+      }
+    })
+    .catch(function(){
+      setSaveIndicator('error');
+      setSyncStatus('error', '保存失敗');
+    });
+  } else {
+    localStorage.setItem('pm_local_settings', JSON.stringify(s));
+    setSaveIndicator('saved');
+    setSyncStatus('local', 'ローカル保存済み');
+    isDirty = false;
+  }
+}
+
+function markDirty() {
+  isDirty = true;
+  setSaveIndicator('dirty');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveSettings, 2000);
+}
+
+function setSaveIndicator(state) {
+  ['save-indicator','save-indicator2'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    if(state==='saving') { el.className='save-indicator saving'; el.innerHTML='<span class="spinner"></span> 保存中...'; }
+    else if(state==='saved') { el.className='save-indicator saved'; el.textContent='✓ 保存しました'; }
+    else if(state==='error') { el.className='save-indicator'; el.textContent='保存に失敗しました'; el.style.color='var(--red)'; }
+    else if(state==='dirty') { el.className='save-indicator'; el.textContent='未保存の変更があります'; el.style.color='var(--amber)'; }
+  });
+}
+
+function setSyncStatus(type, text) {
+  var el = document.getElementById('sync-status');
+  el.className = 'sync-status ' + type;
+  document.getElementById('sync-text').textContent = text;
+}
+
+// ===== UI HELPERS =====
+function onTypeChange() {
+  var t = document.getElementById('popup-type').value;
+  document.getElementById('text-card').style.display = t==='banner' ? 'none' : '';
+  document.getElementById('coupon-field').style.display = (t==='coupon'||t==='both') ? '' : 'none';
+  syncPreview();
+}
+
+function toggleOnce() {
+  document.getElementById('freq-settings').style.display = document.getElementById('chk-once').checked ? 'none' : '';
+}
+
+function onImageUpload(input) {
+  var file = input.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    uploadedDataURL = e.target.result;
+    var prev = document.getElementById('upload-preview');
+    prev.src = uploadedDataURL;
+    prev.style.display = 'block';
+    syncPreview();
+    markDirty();
+  };
+  reader.readAsDataURL(file);
+}
+
+function syncHex(colorId, hexId) { document.getElementById(hexId).value = document.getElementById(colorId).value; }
+function syncPicker(hexId, colorId) { var v=document.getElementById(hexId).value; if(/^#[0-9a-fA-F]{6}$/.test(v)) document.getElementById(colorId).value=v; }
+
+// ===== PREVIEW =====
+function syncPreview() {
+  var t = document.getElementById('popup-type').value;
+  var isBanner = t==='banner';
+  var badge = document.getElementById('txt-badge').value;
+  var title = document.getElementById('txt-title').value;
+  var desc = document.getElementById('txt-desc').value;
+  var btn = document.getElementById('txt-btn').value;
+  var coupon = document.getElementById('txt-coupon').value;
+  var btnCol = document.getElementById('col-btn').value;
+  var badgeCol = document.getElementById('col-badge').value;
+
+  var pmImg = document.getElementById('pm-img');
+  if(uploadedDataURL){ pmImg.src=uploadedDataURL; pmImg.style.display='block'; } else pmImg.style.display='none';
+
+  document.getElementById('pm-badge-wrap').style.display = isBanner?'none':'';
+  document.getElementById('pm-title').style.display = isBanner?'none':'';
+  document.getElementById('pm-desc').style.display = isBanner?'none':'';
+  document.getElementById('pm-input-wrap').style.display = (t==='lead'||t==='both')?'':'none';
+  document.getElementById('pm-btn').style.display = isBanner?'none':'';
+  document.getElementById('pm-coupon').style.display = (t==='coupon'||t==='both')?'':'none';
+  document.querySelector('.pm-skip').style.display = isBanner?'none':'';
+
+  document.getElementById('pm-badge').textContent = badge;
+  document.getElementById('pm-badge').style.background = badgeCol;
+  document.getElementById('pm-title').textContent = title;
+  document.getElementById('pm-desc').textContent = desc;
+  document.getElementById('pm-btn').textContent = btn;
+  document.getElementById('pm-btn').style.background = btnCol;
+  document.getElementById('pm-coupon-code').textContent = coupon;
+}
+
+function showOverlay() {
+  syncPreview();
+  document.getElementById('preview-overlay').classList.add('show');
+}
+
+// ===== CODE GENERATION =====
+function generateCode() {
+  var s = collectSettings();
+  var isBanner = s.type==='banner';
+  var showCoupon = s.type==='coupon'||s.type==='both';
+  var showInput = s.type==='lead'||s.type==='both';
+  var imgSrc = uploadedDataURL ? '[IMAGE_URL]' : '';
+  var imgLink = s.imgLink;
+
+  var imgTag = imgSrc ? '<img src=\\"'+imgSrc+'\\" style=\\"width:100%;border-radius:8px;margin-bottom:'+(isBanner?'0':'12')+'px;display:block\\">' : '';
+  var imgHTML = (imgSrc && imgLink) ? '<a href=\\"'+esc(imgLink)+'\\" target=\\"_blank\\">'+imgTag+'</a>' : imgTag;
+
+  var innerHTML = isBanner ? imgHTML :
+    imgHTML +
+    '<div style=\\"display:inline-block;font-size:11px;padding:3px 10px;border-radius:20px;margin-bottom:8px;background:'+s.badgeCol+'\\">'+esc(s.badge)+'</div>'+
+    '<div style=\\"font-size:17px;font-weight:700;margin-bottom:6px;color:#1a1917\\">'+esc(s.title)+'</div>'+
+    '<div style=\\"font-size:13px;color:#666;margin-bottom:14px;line-height:1.6\\">'+esc(s.desc)+'</div>'+
+    (showCoupon?'<div style=\\"background:#fafaf8;border:1.5px dashed #ccc;border-radius:8px;padding:12px;text-align:center;margin-bottom:12px\\"><div style=\\"font-size:20px;font-weight:700;letter-spacing:.1em\\" id=\\"_pc\\">'+esc(s.coupon)+'</div><div style=\\"font-size:11px;color:#aaa\\">コードをコピーしてご利用ください</div></div>':'')+
+    (showInput?'<input type=\\"email\\" id=\\"_pe\\" placeholder=\\"メールアドレスを入力\\" style=\\"width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;margin-bottom:8px;outline:none;box-sizing:border-box\\">':'')+
+    '<button onclick=\\"_ps()\\" style=\\"width:100%;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;background:'+s.btnCol+'\\">'+esc(s.btn)+'</button>'+
+    '<div onclick=\\"_pc2()\\" style=\\"text-align:center;margin-top:8px;font-size:11px;color:#bbb;cursor:pointer\\">後で確認する</div>';
+
+  var checkLogic = s.once
+    ? "if(localStorage.getItem('_psd'))return;"
+    : "var _d=JSON.parse(localStorage.getItem('_pd')||'{}');if((_d.c||0)>="+s.max+"||((Date.now()-(_d.t||0))<"+s.days+"*86400000))return;";
+  var saveLogic = s.once
+    ? "localStorage.setItem('_psd','1');"
+    : "var _d2=JSON.parse(localStorage.getItem('_pd')||'{}');_d2.c=(_d2.c||0)+1;_d2.t=Date.now();localStorage.setItem('_pd',JSON.stringify(_d2));";
+
+  var code = `<!-- LP Popup -->
+<style>
+#_po{position:fixed;inset:0;background:rgba(0,0,0,.44);z-index:9999;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .3s}
+#_po.on{opacity:1;pointer-events:all}
+#_pb{width:340px;max-width:92vw;background:#fff;border-radius:12px;padding:24px 20px 20px;position:relative}
+</style>
+<div id="_po"><div id="_pb">
+  <button onclick="_pc2()" style="position:absolute;top:8px;right:10px;background:none;border:none;font-size:16px;cursor:pointer;color:#aaa">✕</button>
+  ${innerHTML}
+</div></div>
+<script>
+(function(){
+  ${checkLogic}
+  function _pshow(){document.getElementById('_po').classList.add('on');${saveLogic}}
+  window._pc2=function(){document.getElementById('_po').classList.remove('on')};
+  window._ps=function(){var e=document.getElementById('_pe');if(e&&!e.value.trim()){e.style.borderColor='red';return;}_pc2();};
+  var _done=false;
+  function _try(){if(_done)return;_done=true;_pshow();}
+  setTimeout(_try,${parseInt(s.time)*1000});
+  var _tk=false;
+  window.addEventListener('scroll',function(){if(_tk)return;_tk=true;requestAnimationFrame(function(){var r=document.documentElement;if((window.scrollY/(r.scrollHeight-r.clientHeight))>=${parseInt(s.scroll)/100})_try();_tk=false;});});
+  ${s.exit?"document.addEventListener('mouseleave',function(e){if(e.clientY<5)_try();});":""}
+})();
+<\/script>`;
+
+  document.getElementById('code-out').textContent = code;
+}
+
+function copyCode() {
+  var text = document.getElementById('code-out').textContent;
+  navigator.clipboard.writeText(text).then(function(){
+    var btn = document.querySelector('.code-header button');
+    btn.textContent = '✓ コピーしました';
+    setTimeout(function(){ btn.textContent = 'コピー'; }, 2000);
+  });
+}
+
+function esc(s){ return (s||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+</script>
+</body>
+</html>
