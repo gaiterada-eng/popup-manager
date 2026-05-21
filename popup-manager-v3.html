@@ -696,6 +696,7 @@ function saveSettings() {
       } else {
         setSaveIndicator('error');
         setSyncStatus('error', '保存失敗');
+      }
     });
   } else {
     localStorage.setItem('pm_local_settings', JSON.stringify(s));
