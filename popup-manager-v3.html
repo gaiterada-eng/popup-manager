@@ -521,6 +521,27 @@ var uploadedDataURL = null;
 var isDirty = false;
 var saveTimer = null;
 
+// ===== GAS通信（scriptタグ方式でCORSを完全回避） =====
+function gasRequest(params, callback) {
+  var callbackName = '_gas_cb_' + Date.now();
+  params.callback = callbackName;
+  var qs = Object.keys(params).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(params[k]); }).join('&');
+  var script = document.createElement('script');
+  var timer = setTimeout(function(){
+    window[callbackName] = null;
+    if(script.parentNode) document.body.removeChild(script);
+    callback(null, 'timeout');
+  }, 10000);
+  window[callbackName] = function(data) {
+    clearTimeout(timer);
+    window[callbackName] = null;
+    if(script.parentNode) document.body.removeChild(script);
+    callback(data, null);
+  };
+  script.src = GAS_URL + '?' + qs;
+  document.body.appendChild(script);
+}
+
 // ===== SETUP =====
 function connectGAS() {
   var url = document.getElementById('setup-url').value.trim();
@@ -530,22 +551,18 @@ function connectGAS() {
   document.getElementById('setup-spinner').style.display = 'block';
   document.getElementById('setup-error').style.display = 'none';
 
-  fetch(url + '?key=' + encodeURIComponent(key))
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      document.getElementById('setup-spinner').style.display = 'none';
-      if(d.error === 'unauthorized') { showSetupError('シークレットキーが正しくありません'); return; }
-      GAS_URL = url;
-      SECRET_KEY = key;
-      IS_GAS = true;
-      localStorage.setItem('pm_gas_url', url);
-      localStorage.setItem('pm_gas_key', key);
-      startApp(d);
-    })
-    .catch(function(){
-      document.getElementById('setup-spinner').style.display = 'none';
-      showSetupError('接続に失敗しました。URLを確認してください。\n（CORSエラーの場合はApps Scriptのデプロイ設定を確認してください）');
-    });
+  GAS_URL = url;
+  SECRET_KEY = key;
+
+  gasRequest({ key: key }, function(d, err) {
+    document.getElementById('setup-spinner').style.display = 'none';
+    if(err || !d) { showSetupError('接続に失敗しました。URLとキーを確認してください。'); GAS_URL=''; SECRET_KEY=''; return; }
+    if(d.error === 'unauthorized') { showSetupError('シークレットキーが正しくありません'); GAS_URL=''; SECRET_KEY=''; return; }
+    IS_GAS = true;
+    localStorage.setItem('pm_gas_url', url);
+    localStorage.setItem('pm_gas_key', key);
+    startApp(d);
+  });
 }
 
 function startLocal() {
@@ -658,26 +675,27 @@ function saveSettings() {
   setSyncStatus('saving', '保存中...');
 
   if(IS_GAS) {
-    var body = Object.assign({key: SECRET_KEY}, s);
-    fetch(GAS_URL, {
-      method: 'POST',
-      body: JSON.stringify(body),
-      headers: {'Content-Type': 'application/json'}
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      if(d.success) {
+    gasRequest({
+      key:      SECRET_KEY,
+      action:   'save',
+      title:    s.title,
+      desc:     s.desc,
+      badge:    s.badge,
+      btn:      s.btn,
+      coupon:   s.coupon,
+      active:   s.active ? 'TRUE' : 'FALSE',
+      type:     s.type,
+      btnCol:   s.btnCol,
+      badgeCol: s.badgeCol,
+      imgLink:  s.imgLink || ''
+    }, function(d, err) {
+      if(!err && d && d.success) {
         setSaveIndicator('saved');
         setSyncStatus('synced', '同期済み');
         isDirty = false;
       } else {
         setSaveIndicator('error');
-        setSyncStatus('error', 'エラー');
-      }
-    })
-    .catch(function(){
-      setSaveIndicator('error');
-      setSyncStatus('error', '保存失敗');
+        setSyncStatus('error', '保存失敗');
     });
   } else {
     localStorage.setItem('pm_local_settings', JSON.stringify(s));
